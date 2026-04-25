@@ -1,0 +1,21 @@
+# Runtime environment — never commit secrets or local overrides
+.env
+.env.local
+.env.*.local
+
+# Generated data — can be very large
+data/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
