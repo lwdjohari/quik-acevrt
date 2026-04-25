@@ -1,0 +1,72 @@
+name: ${PROJECT_NAME}
+
+services:
+  ace-step-xl:
+    image: ${ACE_IMAGE_REF}
+    container_name: ${SERVICE_NAME}
+
+    user: "${HOST_UID}:${HOST_GID}"
+    restart: ${RESTART_POLICY}
+
+    ports:
+      - "${ACE_HOST}:${ACE_PORT}:8000"
+
+    environment:
+      TZ: "${TZ}"
+
+      # Core runtime
+      ACESTEP_DEVICE: "${ACESTEP_DEVICE}"
+      ACESTEP_PROJECT_ROOT: "/app"
+      ACESTEP_OUTPUT_DIR: "${ACESTEP_OUTPUT_DIR}"
+      ACESTEP_TMPDIR: "${ACESTEP_OUTPUT_DIR}"
+
+      # Model paths — point to baked-in checkpoints by default.
+      # Override to a host-mounted path only if you have pre-downloaded models.
+      ACESTEP_CONFIG_PATH: "${ACESTEP_CONFIG_PATH}"
+      ACESTEP_LM_MODEL_PATH: "${ACESTEP_LM_MODEL_PATH}"
+      ACESTEP_LM_BACKEND: "${ACESTEP_LM_BACKEND}"
+
+      # API bind (must match the exposed port 8000)
+      ACESTEP_API_HOST: "0.0.0.0"
+      ACESTEP_API_PORT: "8000"
+
+      # Standard cache locations
+      HF_HOME: "${HF_HOME}"
+      TORCH_HOME: "${TORCH_HOME}"
+      XDG_CACHE_HOME: "${XDG_CACHE_HOME}"
+
+    volumes:
+      # Generated audio — the only volume the image strictly requires
+      - "${ACE_DATA_DIR}/output:${ACESTEP_OUTPUT_DIR}"
+
+      # Cache layers — survive image upgrades, save re-download time
+      - "${ACE_DATA_DIR}/hf-cache:${HF_HOME}"
+      - "${ACE_DATA_DIR}/torch-cache:${TORCH_HOME}"
+      - "${ACE_DATA_DIR}/cache:${XDG_CACHE_HOME}"
+
+      # Optional: uncomment to persist / override baked-in model checkpoints.
+      # Directories must be pre-populated before first start.
+      # - "${ACE_DATA_DIR}/models/config:${ACESTEP_CONFIG_PATH}"
+      # - "${ACE_DATA_DIR}/models/lm:${ACESTEP_LM_MODEL_PATH}"
+
+    security_opt:
+      - no-new-privileges:true
+
+    shm_size: "${SHM_SIZE}"
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "${LOG_MAX_SIZE}"
+        max-file: "${LOG_MAX_FILE}"
+
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\", timeout=5)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+networks:
+  default:
+    driver: bridge
