@@ -5,7 +5,9 @@ services:
     image: ${ACE_IMAGE_REF}
     container_name: ${SERVICE_NAME}
 
-    user: "${HOST_UID}:${HOST_GID}"
+    # Image runs as root — required because the upstream code writes to paths
+    # inside site-packages (/usr/local/lib/python3.11/dist-packages/gradio_outputs)
+    # that are only writable by root. Output data is protected via volume ownership.
     restart: ${RESTART_POLICY}
 
     ports:
@@ -34,6 +36,9 @@ services:
       HF_HOME: "${HF_HOME}"
       TORCH_HOME: "${TORCH_HOME}"
       XDG_CACHE_HOME: "${XDG_CACHE_HOME}"
+
+      # Redirect matplotlib config away from $HOME (which doesn't exist in container)
+      MPLCONFIGDIR: "${XDG_CACHE_HOME}/matplotlib"
 
     volumes:
       # Generated audio — the only volume the image strictly requires

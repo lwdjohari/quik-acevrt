@@ -56,7 +56,7 @@ most important knobs.
 | `ACESTEP_CONFIG_PATH` | `/app/checkpoints/acestep-v15-xl-base` | Path to XL DiT model — defaults to baked-in checkpoint |
 | `ACESTEP_LM_MODEL_PATH` | `/app/checkpoints/acestep-5Hz-lm-1.7B` | Path to LM model — defaults to baked-in checkpoint |
 | `ACESTEP_LM_BACKEND` | `pt` | LLM backend: `pt` (PyTorch) or `vllm` |
-| `HOST_UID` / `HOST_GID` | `1000` | UID/GID used inside the container (`user:` mapping) |
+| `HOST_UID` / `HOST_GID` | `1000` | Used by `run-ace.sh` to `chown ./data` on the host — container runs as root |
 | `ACE_HOST` | `0.0.0.0` | Host interface to bind the port on |
 | `ACE_PORT` | `8000` | Host port exposed to the browser |
 | `ACE_DATA_DIR` | `./data` | Root for all bind-mounted host directories |
@@ -155,8 +155,12 @@ flags manually.
 
 ## Security
 
-- Container runs as `HOST_UID:HOST_GID` — not root.
+- **Container runs as root** — required by the upstream image, which writes to
+  paths inside `site-packages` at import time. `no-new-privileges` is still set
+  to prevent privilege escalation beyond that.
 - `security_opt: no-new-privileges:true` is set on the service.
+- All persistent data lives in host-mounted volumes under `ACE_DATA_DIR`;
+  `run-ace.sh` chowns them to `HOST_UID:HOST_GID` on the host side.
 - `.env` is `.gitignore`d — secrets stay off version control.
 - Image is pinned by tag (`ACE_IMAGE_REF`). For maximum reproducibility, pin
   to a full digest:
@@ -184,8 +188,11 @@ period, giving the model time to load before the first probe.
 |---|---|
 | `Docker daemon not accessible` | `sudo usermod -aG docker $USER && newgrp docker` |
 | `Docker Compose not found` | `sudo apt install docker-compose-plugin` |
-| `Docker NVIDIA runtime failed` | Install `nvidia-container-toolkit` and restart Docker |
+| `Docker NVIDIA runtime failed` | Install `nvidia-container-toolkit`, run `sudo nvidia-ctk runtime configure --runtime=docker`, then `sudo systemctl restart docker` |
+| `could not select device driver "nvidia"` | Same as above — NVIDIA runtime not registered with Docker |
+| `PermissionError: gradio_outputs` | Do not set `user:` in compose — the image must run as root |
+| `KeyError: getpwuid(): uid not found` | Same as above — remove any `user:` override |
 | Port already in use | Change `ACE_PORT` in `.env` or stop the conflicting process |
 | `Permission denied` on `data/` | `sudo chown -R $(id -u):$(id -g) ./data` |
-| Container stays `unhealthy` | Check logs: `./run-ace.sh logs`; GPU OOM may require smaller `SHM_SIZE` |
+| Container stays `unhealthy` | Check logs: `./run-ace.sh logs`; GPU OOM may require a smaller `SHM_SIZE` |
 
